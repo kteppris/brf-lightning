@@ -1,0 +1,22 @@
+[project]
+name = "brf-lightning"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Keno Teppris", email = "keno.teppris@th-luebeck.de" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "brf-snn",
+]
+
+[project.scripts]
+brf-lightning = "brf_lightning:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+brf-snn = { git = "https://github.com/kteppris/brf-neurons.git" }
