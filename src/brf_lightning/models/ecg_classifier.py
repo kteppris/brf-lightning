@@ -58,6 +58,8 @@ class ECGClassifier(L.LightningModule):
         # logp will have the same time dimension as logits from the backbone.
         logp = F.log_softmax(logits, dim=-1) # (T_model_output, B, NumClasses)
 
+        effective_sequence_length = logp.size(0) # (T_model_output)
+
         # Targets are initially full length from the dataloader.
         tgt_idx_full = tgt.argmax(dim=-1) # (T_orig, B)
 
@@ -98,10 +100,12 @@ class ECGClassifier(L.LightningModule):
                 f"is set and functions to produce this length."
             )
 
-        loss = self.criterion(
+        mean_loss = self.criterion(
             logp.reshape(-1, logp.size(-1)), # (EffectiveTime * B, NumClasses)
             tgt_idx_for_loss.reshape(-1)     # (EffectiveTime * B)
         )
+
+        loss_for_backward = mean_loss * effective_sequence_length
 
         accuracy = self.acc_metric(
             logp.reshape(-1, logp.size(-1)).exp(),
@@ -111,7 +115,7 @@ class ECGClassifier(L.LightningModule):
 
         on_step_log = True if stage == "train" else False
         on_epoch_log = True
-        self.log(f"{stage}_loss", loss, prog_bar=True, on_step=on_step_log, on_epoch=on_epoch_log, batch_size=seq.size(1))
+        self.log(f"{stage}_loss", mean_loss, prog_bar=True, on_step=on_step_log, on_epoch=on_epoch_log, batch_size=seq.size(1))
         self.log(f"{stage}_accuracy", accuracy, prog_bar=True, on_step=on_step_log, on_epoch=on_epoch_log, batch_size=seq.size(1))
 
         if stage == "test" and num_spikes is not None:
@@ -123,7 +127,7 @@ class ECGClassifier(L.LightningModule):
             avg_batch_spikes = num_spikes_item / seq.size(1)
             self.log(f"{stage}/sop", avg_batch_spikes, on_step=False, on_epoch=True, batch_size=seq.size(1))
         
-        return loss
+        return loss_for_backward
 
     def training_step(self, batch: tuple, batch_idx: int) -> torch.Tensor:
         return self._shared_step(batch, "train")
