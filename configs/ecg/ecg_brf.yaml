@@ -1,0 +1,51 @@
+# lightning.pytorch==2.5.1.post0
+# For default values, see: configs/fit_base.yaml
+experiment_name: ecg_simple_res_rnn
+seed_everything: 42
+trainer:
+  fast_dev_run: false
+  max_epochs: 400
+  val_check_interval: null
+  check_val_every_n_epoch: 1
+model:
+  class_path: ECGClassifier
+  init_args:
+    sub_seq_length: 0
+    num_classes: 6
+    backbone:
+      class_path: brf_snn.models.SimpleResRNN
+      init_args:
+        input_size: 4 
+        hidden_size: 36
+        output_size: 6
+        adaptive_omega_a: 3.0
+        adaptive_omega_b: 5.0
+        adaptive_b_offset_a: 0.1
+        adaptive_b_offset_b: 1.0
+        out_adaptive_tau_mem_mean: 20.0
+        out_adaptive_tau_mem_std: 1.0
+        sub_seq_length: 0
+        output_bias: false
+        mask_prob: 0.0
+        hidden_bias: false
+        dt: 0.01
+    # --- Optimizer + Scheduler via Submodule Injection ---
+    optimizer:
+      class_path: torch.optim.Adam
+      init_args:
+        lr: 0.1
+        weight_decay: 0
+    scheduler:
+      class_path: torch.optim.lr_scheduler.LinearLR
+      init_args:
+        start_factor: 1.0
+        end_factor: 0.0
+        total_iters: 400
+data:
+  class_path: ECGDataModule
+  init_args:
+    data_dir: data/ecg
+    batch_size: 16
+    num_workers: 4
+    validation_split: 0.1
+ckpt_path: null
