@@ -14,5 +14,6 @@ TRAINER_DEFAULTS = {
 }
 
 CONFIG_DEFAULTS = {
-    "fit": {"default_config_files": ["configs/fit_base.yaml"]}
+    "fit": {"default_config_files": ["configs/fit_base.yaml", "configs/override_base.yaml"]},
+    "parser_mode": "omegaconf"
 }

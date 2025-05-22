@@ -1,20 +1,17 @@
 import logging
-from lightning.pytorch.cli import LightningCLI
+from dotenv import load_dotenv
 
 from brf_lightning.models import *
 from brf_lightning.data import *
 from brf_lightning.defaults import TRAINER_DEFAULTS, CONFIG_DEFAULTS
+from brf_lightning.utils.cli import BRFLightningCLI
 
 logging.getLogger("lightning.pytorch").setLevel(logging.INFO)
 
-class ECGLightningCLI(LightningCLI):
-    def add_arguments_to_parser(self, parser):
-        # 1) globale Variable
-        parser.add_argument("--experiment_name", type=str, required=True)
+load_dotenv()
 
 if __name__ == "__main__":
-    ECGLightningCLI(
-        seed_everything_default=42,
+    BRFLightningCLI(
         trainer_defaults=TRAINER_DEFAULTS,
         parser_kwargs=CONFIG_DEFAULTS,
         auto_configure_optimizers=False

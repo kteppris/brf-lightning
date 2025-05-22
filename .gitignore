@@ -14,3 +14,9 @@ results/
 
 # IDE
 .vscode/
+
+# Evironments
+.env
+
+# custom config
+configs/override_base.yaml
