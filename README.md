@@ -84,7 +84,7 @@ python src/brf_lightning/train.py \
   python src/brf_lightning/train.py fit --print_config
   ```
 
-  The output is a fully‑resolved YAML file you can pipe to disk and edit.  ([lightning.ai](https://lightning.ai/docs/pytorch/stable//cli/lightning_cli_advanced.html?utm_source=chatgpt.com))
+  The output is a fully‑resolved YAML file you can pipe to disk and edit.  ([lightning.ai](https://lightning.ai/docs/pytorch/stable//cli/lightning_cli_advanced.html))
 * Override individual parameters on the command line using dot notation:
 
   ```bash
@@ -108,9 +108,9 @@ results/<experiment_name>/version_<n>/
 └── config.yaml         # Complete config used
 ```
 
-* `version_<n>` is auto‑incremented; all loggers share **one** value because we patch their `version`/`run_name` when they are `None`.  TensorBoard and CSV accept an explicit `version` argument, preventing them from creating separate folders. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.TensorBoardLogger.html?utm_source=chatgpt.com), [lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.CSVLogger.html?utm_source=chatgpt.com))
-* Checkpoints follow the same path via `Trainer(default_root_dir=…)`. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//common/trainer.html?utm_source=chatgpt.com))
-* `MLFlowLogger` maps the same string to `run_name` so that the run inside the MLflow UI matches the directory on disk. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.MLFlowLogger.html?utm_source=chatgpt.com))
+* `version_<n>` is auto‑incremented; all loggers share **one** value because we patch their `version`/`run_name` when they are `None`.  TensorBoard and CSV accept an explicit `version` argument, preventing them from creating separate folders. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.TensorBoardLogger.html), [lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.CSVLogger.html))
+* Checkpoints follow the same path via `Trainer(default_root_dir=…)`. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//common/trainer.html))
+* `MLFlowLogger` maps the same string to `run_name` so that the run inside the MLflow UI matches the directory on disk. ([lightning.ai](https://lightning.ai/docs/pytorch/stable//extensions/generated/lightning.pytorch.loggers.MLFlowLogger.html))
 
 ### Resuming / continuing runs
 
