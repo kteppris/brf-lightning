@@ -104,6 +104,7 @@ results/<experiment_name>/version_<n>/
 ├── checkpoints/        # *.ckpt files saved by ModelCheckpoint
 ├── metrics.csv         # CSVLogger
 ├── events.out...       # TensorBoard logs
+├── profiler_output.txt # Profiler results, duration of each component 
 └── config.yaml         # Complete config used
 ```
 
