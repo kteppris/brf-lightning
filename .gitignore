@@ -20,3 +20,6 @@ results/
 
 # custom config
 configs/override_base.yaml
+
+# Data
+data/bearing*

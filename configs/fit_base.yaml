@@ -8,18 +8,18 @@ trainer:
   num_nodes: 1
   precision: null
   logger:
-    - class_path: lightning.pytorch.loggers.TensorBoardLogger
+    - class_path: lightning.pytorch.loggers.CSVLogger
       init_args:
         save_dir: results/
-    - class_path: lightning.pytorch.loggers.CSVLogger
+    - class_path: lightning.pytorch.loggers.TensorBoardLogger
       init_args:
         save_dir: results/
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
-        filename: '{epoch}-{val_loss:.2f}-{val_accuracy:.2f}'
+        filename: '{epoch}-{val/loss:.2f}-{val/accuracy:.2f}'
         save_top_k: 1
-        monitor: 'val_loss'
+        monitor: 'val/loss'
         mode: 'min'
   fast_dev_run: false
   max_epochs: 400
@@ -32,3 +32,4 @@ trainer:
   gradient_clip_algorithm: null
   inference_mode: true
   use_distributed_sampler: true
+  enable_model_summary: false
