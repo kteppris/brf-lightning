@@ -3,5 +3,6 @@ from .bearing_fault_classifier import BearingFaultClassifier
 
 __all__ = [
     "ECGClassifier",
-    "BearingFaultClassifier"
+    "BearingFaultClassifier",
+    "backbones",
 ]

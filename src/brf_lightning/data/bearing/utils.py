@@ -1,11 +1,12 @@
 import re
+from pathlib import Path
 import pandas as pd
 import numpy as np
-from pathlib import Path
+from scipy.signal import hilbert
 
 def _parse_speed(name: str) -> int:
     """Extract speed in Hz from a file name, e.g. 'fAII20.csv' → 20."""
-    return int("".join(ch for ch in name if ch.isdigit()))
+    return int("".join(ch for ch in name.stem if ch.isdigit()))
 
 def _bearing_id_from_path(fp: str | Path) -> str:
     """
@@ -94,4 +95,20 @@ def _highpass(sig: np.ndarray, fs: float, fc: float = 2.0, order: int = 4) -> np
         return filtfilt(b, a, sig, padlen=3 * order)
     except ImportError:
         return sig  # graceful degradation
-    
+
+def fdtw_safe(
+    x: np.ndarray,
+    fs: float,
+    *,
+    spr: int = 360,
+    max_len_sec: float = 30.0,
+) -> tuple[np.ndarray, float]:
+    """Tacholess order-domain resample with a RAM cap."""
+    if x.size > max_len_sec * fs:
+        x = x[: int(max_len_sec * fs)]
+
+    phase = np.unwrap(np.angle(hilbert(x)))
+    grid  = np.arange(phase[0], phase[-1], 2 * np.pi / spr)
+    x_ord = np.interp(grid, phase, x).astype(np.float32)
+    fs_ord = float(spr)               # samples per revolution
+    return x_ord, fs_ord

@@ -1,0 +1,89 @@
+# lightning.pytorch==2.5.1.post0
+experiment_name: bearing_brf_simple_order
+seed_everything: 42
+
+# ───────────── trainer ───────────────────────────────────────────────
+trainer:
+  max_epochs: 30                       # fast sanity-check run
+
+# ───────────── model ────────────────────────────────────────────────
+model:
+  class_path: brf_lightning.models.BearingFaultClassifier
+  init_args:
+    num_classes: 3
+    reduction: mean                    # many-to-one
+    backbone:
+      class_path: brf_lightning.models.backbones.BRFBackboneScaledInput
+      init_args:
+        # -- network sizes ---------------------------------------------------
+        input_size: 1
+        hidden_size: 64
+        num_classes: 3
+
+        # -- simulation step / angle grid ------------------------------------
+        dt: 0.01                        # 1 simulation-step  = 0.01 rev
+                                         # ⇒ 100 samples / rev in the DM
+
+        # -- BRF resonance search range (orders ≈ 3 … 15) --------------------
+        adaptive_omega_a: 3.0           #   3 × 2π  ≈  19 rad/rev
+        adaptive_omega_b: 15.0          #  15 × 2π  ≈  94 rad/rev
+
+        # -- balanced-boundary (small → easier to spike) ---------------------
+        adaptive_b_offset_a: 0.005
+        adaptive_b_offset_b: 0.05
+
+        # -- encoder scaling knobs -------------------------------------------
+        weight_gain: 2.0                # larger Xavier fan-in variance
+        input_gain_init: 10.0           # start with ×10 signal boost
+        learn_input_gain: true          # scalar is trainable
+
+        # -- read-out membrane -----------------------------------------------
+        readout_tau_mean: 3.0
+        readout_tau_std: 0.5
+
+        # -- optional post-logit gain ----------------------------------------
+        post_gain_auto: true
+        post_gain_learnable: false
+        post_gain_target_std: 1.0
+
+# ───────────── optimiser / schedule ─────────────────────────────────
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 1.0e-2
+
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    total_iters: ${trainer.max_epochs}
+
+# ───────────── data ────────────────────────────────────────────────
+data:
+  class_path: brf_lightning.data.BearingDataModule
+  init_args:
+    filepaths:
+      - data/bearing_thl_v1/fAII10.csv
+      - data/bearing_thl_v1/fAII20.csv
+      - data/bearing_thl_v1/fAII30.csv
+      - data/bearing_thl_v1/n10.csv
+      - data/bearing_thl_v1/n20.csv
+      - data/bearing_thl_v1/n30.csv
+      - data/bearing_thl_v1/fIII10.csv
+      - data/bearing_thl_v1/fIII20.csv
+      - data/bearing_thl_v1/fIII30.csv
+    batch_size: 32
+    val_ratio: 0.10
+    test_ratio: 0.10
+    keep_fraction: 0.1
+
+    # --- order-domain preprocessing ----------------------------------------
+    order_domain_mode: fixed           # resample with nominal rpm
+    samples_per_rev: 100               # must equal 1/dt above
+    window_size: 4.0                   # 1 revolution per sample
+    hop_size: 2.0
+
+    # --- misc preprocessing --------------------------------------------------
+    target_rms: null                   # raw amplitude; gain learned inside net
+    norm: file
+    balance_mode: global_min
+    num_workers: 8

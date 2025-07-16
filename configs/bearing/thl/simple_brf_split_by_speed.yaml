@@ -1,0 +1,74 @@
+# lightning.pytorch==2.5.1.post0
+experiment_name: bearing_brf_simple_order
+seed_everything: 42
+
+trainer:
+  max_epochs: 30
+
+model:
+  class_path: brf_lightning.models.BearingFaultClassifier
+  init_args:
+    num_classes: 3
+    reduction: mean
+    implicit_normal: true 
+    backbone:
+      class_path: brf_lightning.models.backbones.BRFBackbone
+      init_args:
+        input_size: 1
+        hidden_size: 64
+        num_classes: 2
+        # one simulation step = 1 angle sample
+        dt: 0.01
+        adaptive_omega_a: 5.0                  # 5 … 25 rad/step = 0.8–4 orders
+        adaptive_omega_b: 25.0
+        adaptive_b_offset_a: 0.005
+        adaptive_b_offset_b: 0.05
+        readout_tau_mean: 3.0
+        readout_tau_std: 0.5
+        post_gain_auto: true
+        post_gain_learnable: false
+        post_gain_target_std: 1.0
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 1.0e-2
+
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    total_iters: ${trainer.max_epochs}
+
+data:
+  class_path: brf_lightning.data.BearingDataModule
+  init_args:
+    filepaths:
+      - data/bearing_thl_v1/fAII10.csv
+      - data/bearing_thl_v1/fAII20.csv
+      - data/bearing_thl_v1/fAII30.csv
+      - data/bearing_thl_v1/n10.csv
+      - data/bearing_thl_v1/n20.csv
+      - data/bearing_thl_v1/n30.csv
+      - data/bearing_thl_v1/fIII10.csv
+      - data/bearing_thl_v1/fIII20.csv
+      - data/bearing_thl_v1/fIII30.csv
+    split_strategy: file_speed
+    split_by_speed:
+      train: [10, 30]
+      val:   [20]
+      test:  [20]
+    val_ratio:  0.05
+    test_ratio: 0.05
+    keep_fraction: 0.05
+
+    # -------------- order-domain settings -----------------
+    order_domain_mode: fixed
+    samples_per_rev: 100            # must match dt above
+    window_size: 1               # 0.25 revolutions
+    hop_size: 0.30
+    # ------------------------------------------------------
+    norm: global
+    balance_mode: global_min
+    
+    num_workers: 8
+    batch_size: 32

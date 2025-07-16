@@ -13,6 +13,5 @@ load_dotenv()
 if __name__ == "__main__":
     BRFLightningCLI(
         trainer_defaults=TRAINER_DEFAULTS,
-        parser_kwargs=CONFIG_DEFAULTS,
-        auto_configure_optimizers=False
+        parser_kwargs=CONFIG_DEFAULTS
     )

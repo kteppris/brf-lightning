@@ -14,8 +14,6 @@ This change fixes the *“filter critical frequencies must be greater than 0”*
 exception observed when processing healthy traces whose SK peak straddles very
 low frequencies.
 """
-from __future__ import annotations
-
 from typing import Tuple, Optional, Sequence
 
 import numpy as np

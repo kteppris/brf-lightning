@@ -1,0 +1,87 @@
+# lightning.pytorch==2.5.1.post0
+experiment_name: bearing_brf_two_bank
+seed_everything: 42          # reproducible weight-, split-, and dataloading RNGs
+# ──────────────────────────────────────────────────────────────────────
+trainer:
+  max_epochs: 50             # → ± 2 min on a recent GPU; raise for final runs
+# ──────────────────────────────────────────────────────────────────────
+model:
+  class_path: brf_lightning.models.BearingFaultClassifier
+  init_args:
+    num_classes: 3
+    reduction: mean          # average over all time steps (many-to-one)
+    backbone:
+      class_path: brf_lightning.models.backbones.two_bank_brf.TwoBankBRFBackbone
+      init_args:
+        # ============================================================
+        # 1) simulation grids & generic BRF parameters
+        # ============================================================
+        dt_time:        0.0001220703125        # raw sample period  = 1 / 8192 Hz
+        samples_per_rev: 100                   # “angle grid” for fault bank
+        adaptive_b_offset_a: 0.005
+        adaptive_b_offset_b: 0.050
+        weight_gain:       2.0                 # ⇒ 2× wider Xavier fan-in range
+        # ============================================================
+        # 2) carrier-resonance (time-domain) bank
+        #    – fixed housing / structural modes ––––––––––––––––––––––
+        # ============================================================
+        carrier_size:     16            # how many resonance neurons
+        carrier_omega_Hz: [400.0, 1200.0]       # <<< two-element range
+        carrier_trainable: true               # keep them *exactly* at modal peaks
+        # ============================================================
+        # 3) fault-order (angle-domain) bank
+        #    – mechanical defect harmonics –––––––––––––––––––––––––––
+        # ============================================================
+        fault_orders:                          # order = f_defect / f_shaft
+          - 3.46        # BPFO :  (n/2)·(1-d/D)          outer-race
+          - 4.68        # BPFI :  (n/2)·(1+d/D)          inner-race
+          - 5.47        # BSF  :  (D/(2d))·(1-(d/D)²)    ball-spin
+        fault_delta:        0.30               # ±0.30 order around each centre
+        fault_neurons_per:  2                  # two BRF cells per expected order
+        fault_trainable:    true               # fine-tune within the ±δ window
+        # ============================================================
+        # 4) input scaling
+        # ============================================================
+        input_gain_init:   10.0                # ×10 boost at start
+        learn_input_gain:  true                # scalar keeps training
+        rpm_scaling:       false               # amplitude ≈ speed already normalised
+        # ============================================================
+        # 5) read-outs & logits
+        # ============================================================
+        readout_tau_mean:  3.0
+        readout_tau_std:   0.5
+        post_gain_auto:       true             # one-shot auto-calibration
+        post_gain_learnable:  true             # and then trainable
+        post_gain_target_std: 1.0
+# ──────────────────────────────────────────────────────────────────────
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.01                                # always start a bit higher with SNNs
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    total_iters: ${trainer.max_epochs}
+# ──────────────────────────────────────────────────────────────────────
+data:
+  class_path: brf_lightning.data.BearingDataModule
+  init_args:
+    filepaths:
+      - data/bearing_thl_v1/fAII10.csv
+      - data/bearing_thl_v1/fAII20.csv
+      - data/bearing_thl_v1/fAII30.csv
+      - data/bearing_thl_v1/fIII10.csv
+      - data/bearing_thl_v1/fIII20.csv
+      - data/bearing_thl_v1/fIII30.csv
+      - data/bearing_thl_v1/n10.csv
+      - data/bearing_thl_v1/n20.csv
+      - data/bearing_thl_v1/n30.csv
+    # ------------- loader & splits -----------------
+    batch_size:     32
+    val_ratio:      0.10
+    test_ratio:     0.10
+    keep_fraction:  0.10           # quick developmental run (≈ 16 k windows)
+    balance_mode:   global_min     # equalise (class × rpm) buckets
+    num_workers:    8
+    # ------------- preprocessing -------------------
+    order_domain_mode: none        # keep raw time doma

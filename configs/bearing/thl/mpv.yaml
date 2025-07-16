@@ -1,0 +1,49 @@
+# lightning.pytorch==2.5.x
+experiment_name: demo_minimal_brf
+seed_everything: 42
+
+trainer:
+  max_epochs: 20
+
+model:
+  class_path: brf_lightning.models.BearingFaultClassifier
+  init_args:
+    num_classes: 3
+    reduction: last
+    backbone:
+      class_path: brf_lightning.models.backbones.mvp.MinimalBRFEncoder
+      init_args:
+        input_size: 1
+        num_classes: 3
+        fs: 8192.0
+        Q: 5.0
+        f0_hz: [1200.0, 1800.0, 2400.0]     # <- tune at will
+        readout_tau_mean: 5.0
+        readout_tau_std: 0.5
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 1.0e-2
+
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    total_iters: ${trainer.max_epochs}
+
+data:
+  class_path: brf_lightning.data.BearingDataModule
+  init_args:
+    filepaths:
+      - data/bearing_thl_v1/n30.csv
+      - data/bearing_thl_v1/fAII30.csv
+      - data/bearing_thl_v1/fIII30.csv
+    split_strategy: chronological
+    val_ratio: 0.10
+    test_ratio: 0.10
+    window_size: 1.0
+    hop_size: 0.30
+    norm: global
+    balance_mode: global_min
+    num_workers: 4
+    batch_size: 32

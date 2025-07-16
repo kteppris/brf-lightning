@@ -21,12 +21,15 @@ trainer:
         save_top_k: 1
         monitor: 'val/loss'
         mode: 'min'
+    - class_path: brf_lightning.callbacks.BRFDebug
+      init_args:
+        log_interval: 2
   fast_dev_run: false
   max_epochs: 400
   val_check_interval: null
   check_val_every_n_epoch: 1
   num_sanity_val_steps: null
-  log_every_n_steps: 10
+  log_every_n_steps: 2
   accumulate_grad_batches: 1
   gradient_clip_val: null
   gradient_clip_algorithm: null

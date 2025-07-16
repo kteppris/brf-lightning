@@ -3,7 +3,10 @@ from lightning.pytorch.profilers import SimpleProfiler
 from jsonargparse import lazy_instance
 
 TRAINER_DEFAULTS = {
-    "callbacks": [lazy_instance(RichProgressBar), lazy_instance(RichModelSummary, max_depth=3)],
+    "callbacks": [
+        lazy_instance(RichProgressBar), 
+        lazy_instance(RichModelSummary, max_depth=3)
+],
     "max_epochs": 400,
     "profiler": {
         "class_path": "lightning.pytorch.profilers.SimpleProfiler", 
