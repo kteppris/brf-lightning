@@ -19,6 +19,10 @@ def _bearing_id_from_path(fp: str | Path) -> str:
     # Example: ".../bearing03_speed20_inner.csv"  -->  "bearing03"
     return fp.stem.split('_')[0]
 
+def _rpm_from_path(fp: str | Path) -> int:
+    """Extract the first integer from a filename as nominal RPM."""
+    return int("".join(c for c in Path(fp).stem if c.isdigit()))
+
 def _class_id_from_path(fp: str | Path) -> int:
     """
     Map filename → integer label   (healthy=0, inner-race=1, outer-race=2, …).

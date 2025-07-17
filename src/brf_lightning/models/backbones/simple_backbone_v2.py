@@ -105,7 +105,7 @@ class ThetaBRFCell(BRFCell):
 # Backbone model
 # -------------------------------------------------------------
 class BRFBackboneV2(nn.Module):
-    """Carrier‑tuned BRF ➔ LIF backbone (theta inside BRF)."""
+    """Carrier-tuned BRF ➔ LIF backbone (theta inside BRF)."""
 
     def __init__(
         self,

@@ -25,14 +25,14 @@ class BearingFaultClassifier(L.LightningModule):
     num_classes
         Total number of labels in the dataset (including *normal*).
     reduction
-        ``'last'`` – use final step of a sequence  
-        ``'mean'`` – temporal mean  
-        ``'none'`` – keep sequence (many-to-many)
+        ``'last'`` - use final step of a sequence  
+        ``'mean'`` - temporal mean  
+        ``'none'`` - keep sequence (many-to-many)
     criterion
         Loss function. Defaults to NLLLoss().
     implicit_normal
-        *False* – backbone outputs *all* `num_classes` logits (legacy).  
-        *True*  – backbone outputs only defect logits;
+        *False* - backbone outputs *all* `num_classes` logits (legacy).  
+        *True*  - backbone outputs only defect logits;
         a zero-logit column is prepended so “no spike ⇒ class 0”.
     """
 
@@ -49,12 +49,17 @@ class BearingFaultClassifier(L.LightningModule):
         # ignore large objects to keep checkpoints light
         self.save_hyperparameters(ignore=["backbone", "criterion"])
 
+        # actual PyTorch model
         self.backbone = backbone
+
         self.reduction = reduction
+
+        # Loss function, can be overwritten via config submodule injection
         self.criterion = criterion or nn.NLLLoss()
         self.implicit_normal = implicit_normal
         self.defect_classes = num_classes - 1 if implicit_normal else num_classes
 
+        # torchmetrics setup TODO: Implement via config
         metrics = MetricCollection(
             {
                 "acc": MulticlassAccuracy(num_classes=num_classes),
@@ -65,10 +70,10 @@ class BearingFaultClassifier(L.LightningModule):
         self.val_metrics = metrics.clone(prefix="val/")
         self.test_metrics = metrics.clone(prefix="test/")
 
+        # check if model expects speed or not
         sig = inspect.signature(backbone.forward)
         self._pass_speed = "speed" in sig.parameters
 
-    # ────────────────── helpers ──────────────────
     def _reduce_time(self, logits: torch.Tensor) -> torch.Tensor:
         if logits.ndim == 3:
             if self.reduction == "last":
@@ -89,19 +94,17 @@ class BearingFaultClassifier(L.LightningModule):
             return y
         raise ValueError("label shape incompatible with sequence logits")
 
-    # ────────────────── forward ──────────────────
     def forward(self, x: torch.Tensor, speed: Optional[torch.Tensor] = None):
         x = self._to_time_first(x)
         logits = self.backbone(x, speed) if self._pass_speed else self.backbone(x)
 
         # prepend zero-logit for 'normal' if requested
         if self.implicit_normal:
-            z = torch.zeros_like(logits[..., :1])  # same dtype/device/batch
+            z = torch.zeros_like(logits[..., :1])
             logits = torch.cat([z, logits], dim=-1)  # (…, C)
 
         return self._reduce_time(logits)
 
-    # ───────────────── shared step ───────────────
     def _shared_step(
         self,
         batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
@@ -123,7 +126,6 @@ class BearingFaultClassifier(L.LightningModule):
         metrics(log_p.exp(), y)
         return loss
 
-    # ────────────────── Lightning hooks ──────────
     def training_step(self, batch, _):
         loss = self._shared_step(batch, self.train_metrics)
         self.log_dict(self.train_metrics, on_step=True, prog_bar=True)
@@ -141,10 +143,3 @@ class BearingFaultClassifier(L.LightningModule):
         self.log_dict(self.test_metrics, on_epoch=True)
         self.log("test/loss", loss, on_epoch=True)
         return loss
-
-    def on_train_epoch_end(self): # TODO: Added later
-        if self.trainer.current_epoch == 3:
-            for p in self.backbone.brfc.parameters():
-                if p is self.backbone.brfc.omega:
-                    p.requires_grad_(False)
-

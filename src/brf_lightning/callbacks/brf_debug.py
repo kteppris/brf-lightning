@@ -14,7 +14,7 @@ from PIL import Image
 log = logging.getLogger("lightning.pytorch.core")
 
 def is_brf(module: torch.nn.Module) -> bool:
-    return hasattr(module, "omega") and "brf" in module.__class__.__name__.lower()
+    return hasattr(module, "omega") and "rf" in module.__class__.__name__.lower()
 
 def fig_to_tensor(fig) -> torch.Tensor:
     buf = io.BytesIO()

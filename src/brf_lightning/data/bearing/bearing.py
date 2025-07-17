@@ -20,12 +20,10 @@ from brf_lightning.data.bearing.utils import (
     load_vibration_data,
 )
 
-LOG = logging.getLogger("lightning.pytorch.core")
+logger = logging.getLogger("lightning.pytorch.core")
 
+ROBUST_C = 1.4826
 
-# ────────────────────────────────────────────────────────────────────────
-# helpers
-# ────────────────────────────────────────────────────────────────────────
 def _rpm_from_path(fp: str | Path) -> int:
     """Extract the first integer from a filename as nominal RPM."""
     return int("".join(c for c in Path(fp).stem if c.isdigit()))
@@ -235,9 +233,26 @@ class BearingDataModule(L.LightningDataModule):
 
     # 2. compute global mean/std ----------------------------------------------------------
     def _compute_global_norm(self, global_pool: List[np.ndarray]):
-        concat = np.concatenate(global_pool)
-        self.global_mean, self.global_std = float(concat.mean()), float(concat.std())
-        LOG.info(f"global μ={self.global_mean:.3f}, σ={self.global_std:.3f}")
+        """
+        Robust global z-score:  μ = mean,  σ̂ = 1.4826 * MAD
+        """
+        concat = np.concatenate(global_pool, dtype=np.float64)
+
+        mu = float(concat.mean())
+        mad = float(np.median(np.abs(concat - mu)))
+        sigma_robust = ROBUST_C * mad                       # ≈ σ for Gaussian data
+
+        # 99.8‑th percentile clip (winsorisation)
+        clip_val = float(np.percentile(np.abs(concat), 99.8))
+
+        self.global_mean = mu
+        self.global_std  = sigma_robust
+        self.clip_val    = clip_val
+
+        logger.info(
+            f"[GlobalNorm] μ={mu:.5f}  σ̂(MAD)={sigma_robust:.5f}  "
+            f"clip ±{clip_val:.2f}"
+        )
 
     # 3. build train/val/test datasets ----------------------------------------------------
     def _build_split_sets(self, meta, bucket_cnt):
@@ -258,7 +273,8 @@ class BearingDataModule(L.LightningDataModule):
         for m in meta:
             sig_arr = m["signal"]
             if self.norm == "global":
-                sig_arr = ((sig_arr - self.global_mean) / (self.global_std + 1e-6)).astype(np.float32)
+                sig_arr = (sig_arr - self.global_mean) / (self.global_std + 1e-8)
+                sig_arr = np.clip(sig_arr, -self.clip_val,  self.clip_val, sig_arr)
 
             ds_full = WindowBearingDataset(
                 sig_arr,
@@ -345,7 +361,7 @@ class BearingDataModule(L.LightningDataModule):
     def _log_split_summary(split_log):
         log_df = pd.DataFrame(split_log)
         if log_df.empty:
-            LOG.warning("No data was split into train/val/test sets!")
+            logger.warning("No data was split into train/val/test sets!")
             return
         table = (
             log_df.pivot_table(
@@ -356,7 +372,7 @@ class BearingDataModule(L.LightningDataModule):
             )
             .sort_index()
         )
-        LOG.info("Data split summary (windows per split):\n" + table.to_string())
+        logger.info("Data split summary (windows per split):\n" + table.to_string())
 
     # ───────── dataloaders ─────────
     @staticmethod
