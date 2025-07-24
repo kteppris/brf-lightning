@@ -96,8 +96,11 @@ class BearingFaultClassifier(L.LightningModule):
 
     def forward(self, x: torch.Tensor, speed: Optional[torch.Tensor] = None):
         x = self._to_time_first(x)
-        logits = self.backbone(x, speed) if self._pass_speed else self.backbone(x)
-
+        outputs = self.backbone(x, speed) if self._pass_speed else self.backbone(x)
+        if isinstance(outputs, tuple):
+            logits = outputs[0]
+        else:
+            logits = outputs
         # prepend zero-logit for 'normal' if requested
         if self.implicit_normal:
             z = torch.zeros_like(logits[..., :1])

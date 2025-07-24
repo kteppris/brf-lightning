@@ -1,5 +1,5 @@
 # lightning.pytorch==2.5.1.post0
-experiment_name: thesis_lif_brf
+experiment_name: direct_fault_time
 seed_everything: 42
 
 trainer:
@@ -8,33 +8,41 @@ trainer:
 model:
   class_path: brf_lightning.models.BearingFaultClassifier
   init_args:
-    reduction: last
     backbone:
-      class_path: brf_lightning.models.lif_brf.LIFResRNN
+      class_path: brf_snn.models.SimpleResRNN
       init_args:
         input_size: 1
         hidden_size: 16
         output_size: 3
         pruning: true
 
-        # ── resonance‑aware initial ranges ──
-        adaptive_omega_a: 5000.0
-        adaptive_omega_b: 8000.0
-        adaptive_b_offset_a: 100.0
-        adaptive_b_offset_b: 150.0
-        theta: 1.3     # maintains sparsity
+        # ω tuned to fault frequencies (~200–1000 rad/s)
+        adaptive_omega_a: 200.0
+        adaptive_omega_b: 1000.0
 
-        # LIF read‑out (variable‑speed support)
-        out_adaptive_tau_mem_mean: 640.0   # ⇒ 0.078s (80 ms)
-        out_adaptive_tau_mem_std: 160.0    # ⇒ ±20 ms
+        # b held just below divergence boundary at these ω
+        adaptive_b_offset_a: 1.0
+        adaptive_b_offset_b: 5.0
+
+        dt: 0.0001220703125
+
+        # higher threshold to reduce premature firing
+        theta: 1.5
+
+        # LIF readout dynamics (as before)
+        out_adaptive_tau_mem_mean: 640.0
+        out_adaptive_tau_mem_std: 160.0
+
         n_last: 1
         mask_prob: 0.0
         sub_seq_length: 0
         hidden_bias: false
         output_bias: false
         label_last: false
-
-        dt: 0.0001220703125
+    num_classes: 3
+    reduction: last
+    criterion: null
+    implicit_normal: false
 
 optimizer:
   class_path: torch.optim.Adam
@@ -50,19 +58,20 @@ data:
   class_path: brf_lightning.data.BearingDataModule
   init_args:
     filepaths:
-      - data/bearing_thl_v1/fAII10.csv
-      - data/bearing_thl_v1/fAII20.csv
+      # - data/bearing_thl_v1/fAII10.csv
+      # - data/bearing_thl_v1/fAII20.csv
       - data/bearing_thl_v1/fAII30.csv
-      - data/bearing_thl_v1/n10.csv
-      - data/bearing_thl_v1/n20.csv
+      # - data/bearing_thl_v1/n10.csv
+      # - data/bearing_thl_v1/n20.csv
       - data/bearing_thl_v1/n30.csv
-      - data/bearing_thl_v1/fIII10.csv
-      - data/bearing_thl_v1/fIII20.csv
+      # - data/bearing_thl_v1/fIII10.csv
+      # - data/bearing_thl_v1/fIII20.csv
       - data/bearing_thl_v1/fIII30.csv
     split_strategy: chronological
     val_ratio: 0.10
     test_ratio: 0.10
     keep_fraction: 0.05
+
     order_domain_mode: none
     window_size: 1.0
     hop_size: 0.0

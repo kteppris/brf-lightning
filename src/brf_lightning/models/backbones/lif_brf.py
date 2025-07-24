@@ -1,13 +1,10 @@
 import torch
-from rich.console import Console
 
-from brf_snn.modules import LICell, RFCell, LICellBP
+from brf_snn.modules import BRFCell, LIFCell
 from brf_snn.functional import spike_deletion, quantize_tensor
 
-from brf_lightning.models.backbones.modules.brf  import BRFCell
 
-console = Console()
-class SimpleResRNN(torch.nn.Module):
+class LIFResRNN(torch.nn.Module):
     def __init__(
             self,
             input_size: int,
@@ -29,7 +26,7 @@ class SimpleResRNN(torch.nn.Module):
             dt: float = 0.01,
             theta: float = 0.9
     ) -> None:
-        super(SimpleResRNN, self).__init__()
+        super(LIFResRNN, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -52,7 +49,7 @@ class SimpleResRNN(torch.nn.Module):
         self.out_adaptive_tau_mem_std = out_adaptive_tau_mem_std
 
         self.hidden = BRFCell(
-            input_size=input_size + hidden_size,
+            input_size=input_size + hidden_size,  # only input_size for non-recurrency
             layer_size=hidden_size,
             bias=hidden_bias,
             mask_prob=mask_prob,
@@ -67,7 +64,7 @@ class SimpleResRNN(torch.nn.Module):
             theta=theta
         )
 
-        self.out = LICell(
+        self.out = LIFCell(
             input_size=hidden_size,
             layer_size=output_size,
             adaptive_tau_mem=True,
@@ -75,6 +72,7 @@ class SimpleResRNN(torch.nn.Module):
             adaptive_tau_mem_std=out_adaptive_tau_mem_std,
             bias=output_bias,
         )
+        self._last_out_z = None
 
     def forward(
             self,
@@ -93,35 +91,28 @@ class SimpleResRNN(torch.nn.Module):
         hidden_v = torch.zeros_like(hidden_z)
         hidden_q = torch.zeros_like(hidden_z)
 
-        out_u = torch.zeros((batch_size, self.output_size)).to(x.device)
+        out_u = torch.zeros((batch_size, self.output_size), device=x.device)
+        out_z = torch.zeros_like(out_u)
 
         for t in range(sequence_length):
             # inside for t in range(sequence_length):
-            # if t in (0, 1, 10):                      # a few checkpoints
-            #     console.log(f"[t={t}] u-mean={hidden_u.mean():.4e} "
-            #         f"u-std={hidden_u.std():.4e}  z-sum={hidden_z.sum().item():.0f}")
-
-            input_t = x[t]
-
-            hidden = hidden_z, hidden_u, hidden_v, hidden_q
+            if t in (0, 1, 10):                      # a few checkpoints
+                print(f"[t={t}] u-mean={hidden_u.mean():.4e} "
+                    f"u-std={hidden_u.std():.4e}  z-sum={hidden_z.sum().item():.0f}")
 
             hidden_z, hidden_u, hidden_v, hidden_q = self.hidden(
-                torch.cat((input_t, hidden_z), dim=1),  # input_t for non-recurrency
-                hidden
+                torch.cat((x[t], hidden_z), dim=1),
+                (hidden_z, hidden_u, hidden_v, hidden_q)
             )
-
-            # SOP
             num_spikes += hidden_z.sum()
 
-            out_u = self.out(hidden_z, out_u)
+            # LIF step with wrapped compatibility:
+            out_z, out_u = self.out(hidden_z, (out_z, out_u))
 
-            # Records outputs with sub_seq_length delay
-            if t >= self.sub_seq_length:
-                outputs.append(out_u)
+            outputs.append(out_u)
+
+        # Store last out_z if needed by old code:
+        self._last_out_z = out_z.detach()
 
         outputs = torch.stack(outputs)
-
-        if self.label_last:
-            outputs = outputs[-self.n_last:, :, :]
-
         return outputs, ((hidden_z, hidden_u), out_u), num_spikes

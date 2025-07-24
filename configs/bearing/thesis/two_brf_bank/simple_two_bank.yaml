@@ -1,0 +1,87 @@
+# lightning.pytorch==2.5.1.post0
+experiment_name: simple_two_bank
+seed_everything: 42
+
+trainer:
+  max_epochs: 10
+
+model:
+  class_path: brf_lightning.models.BearingFaultClassifier
+  init_args:
+    backbone:
+      class_path: brf_lightning.models.backbones.BRFStackedEncoder
+      init_args:
+        carrier_brf:
+          class_path: brf_lightning.models.backbones.modules.brf.BRFCell
+          init_args:
+            input_size: 1
+            layer_size: 16
+            pruning: true
+            adaptive_omega_a: 5000.0
+            adaptive_omega_b: 8000.0
+            adaptive_b_offset_a: 100.0
+            adaptive_b_offset_b: 150.0
+            mask_prob: 0.0
+            bias: false
+            dt: 0.0001220703125
+            theta: 1.3
+        envelope_brf:
+          class_path: brf_lightning.models.backbones.modules.brf.BRFCell
+          init_args:
+            input_size: 16
+            layer_size: 6
+            b_offset: 1.0
+            pruning: true
+            adaptive_omega_a: 500.0 # for 3.05 (order Inner Ring) * f_r=30Hz * 2*pi
+            adaptive_omega_b: 1900.0 # for 9.15 (second sideband order Outer Ring) * f_r=30Hz *2*pi
+            adaptive_b_offset_a: 20.0
+            adaptive_b_offset_b: 30.0
+            mask_prob: 0.0
+            bias: false
+            dt: 0.0001220703125
+            theta: 1.0
+        out_adaptive_tau_mem_mean: 640.0
+        out_adaptive_tau_mem_std: 160.0
+        amplitude_gated: true
+        num_classes: 3
+    num_classes: 3
+    reduction: last
+    criterion: null
+    implicit_normal: false
+
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.1
+
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    total_iters: ${trainer.max_epochs}
+
+data:
+  class_path: brf_lightning.data.BearingDataModule
+  init_args:
+    filepaths:
+      # - data/bearing_thl_v1/fAII10.csv
+      # - data/bearing_thl_v1/fAII20.csv
+      - data/bearing_thl_v1/fAII30.csv
+      # - data/bearing_thl_v1/n10.csv
+      # - data/bearing_thl_v1/n20.csv
+      - data/bearing_thl_v1/n30.csv
+      # - data/bearing_thl_v1/fIII10.csv
+      # - data/bearing_thl_v1/fIII20.csv
+      - data/bearing_thl_v1/fIII30.csv
+    split_strategy: chronological
+    val_ratio: 0.10
+    test_ratio: 0.10
+    keep_fraction: 0.1
+
+    order_domain_mode: none
+    window_size: 1.0
+    hop_size: 0.0
+    norm: global
+    target_rms: 800
+    balance_mode: global_min
+    num_workers: 8
+    batch_size: 32

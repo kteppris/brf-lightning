@@ -1,10 +1,8 @@
-# from .simple_brf_v2 import BRFStackedEncoderWithSpeed
-# from .stacked_brf import BRFStackedEncoder
-# from .mvp import MinimalBRFEncoder
-from .vanilla_brf import SimpleResRNN
+from  .simple_brf import SimpleResRNN
+from .lif_brf import LIFResRNN
+from .stacked_brf import BRFStackedEncoder
 __all__ = [
-    # "BRFStackedEncoderWithSpeed",
-    # "BRFStackedEncoder",
-    # "MinimalBRFEncoder",
     "SimpleResRNN"
+    "SimpleLIFResRNN",
+    "BRFStackedEncoder"
 ]
