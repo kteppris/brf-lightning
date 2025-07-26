@@ -65,11 +65,8 @@ class WindowBearingDataset(Dataset):
         return len(self._slices)
 
     def __getitem__(self, idx: int):
+        # already globally z-scored before creating the dataset
         x = self._slices[idx].astype(np.float32)
-        x -= x.mean()
-        if self.target_rms is not None:
-            rms = math.sqrt(float((x * x).mean()))
-            x *= self.target_rms / (rms + 1e-6)
         return torch.from_numpy(x).unsqueeze(-1), self.label, self.speed
 
 
@@ -99,7 +96,7 @@ class BearingDataModule(L.LightningDataModule):
         hop_size: Optional[float] = None,
         # preprocessing
         target_rms: Optional[float] = None,
-        norm: Optional[str] = "global",  # global / file / None
+        norm: Optional[str] = "global",  # only "global" (dataset-wide z-score) or None
         order_domain_mode: str = "none",  # none / fixed / trigger / fdtw
         samples_per_rev: int = 360,
         trig_column: str = "trig",
@@ -114,6 +111,8 @@ class BearingDataModule(L.LightningDataModule):
             raise ValueError(f"split_strategy ∉ {self.SPLIT_MODES}")
         if order_domain_mode not in self.ORDER_MODES:
             raise ValueError(f"order_domain_mode ∉ {self.ORDER_MODES}")
+        if norm not in (None, "global"):
+            raise ValueError("Only a dataset-wide z-score ('global') or no normalization is supported.")
 
         # immutable hyper-params
         self.paths = [Path(p) for p in filepaths]
@@ -136,8 +135,8 @@ class BearingDataModule(L.LightningDataModule):
         self.nw = num_workers
 
         # filled during setup
-        self.global_mean: Optional[float] = None
-        self.global_std: Optional[float] = None
+        self.global_mean: float | None = None
+        self.global_std: float | None = None
         self.train_ds: Dataset | None = None
         self.val_ds: Dataset | None = None
         self.test_ds: Dataset | None = None
@@ -180,11 +179,9 @@ class BearingDataModule(L.LightningDataModule):
             # order-domain transformation
             sig_arr, fs_eff, rpm_eff = self._prepare_signal(df, fs, rpm_nom)
 
-            # per-file or global z-norm collection
-            if self.norm == "file":
-                sig_arr = ((sig_arr - sig_arr.mean()) / (sig_arr.std() + 1e-6)).astype(np.float32)
-            elif self.norm == "global":
-                global_pool.append(sig_arr.astype(np.float64))
+            # global z-norm collection
+            if self.norm == "global":
+                 global_pool.append(sig_arr.astype(np.float64))
 
             # window count estimate for bucket balancing
             win_est = max(
@@ -231,28 +228,12 @@ class BearingDataModule(L.LightningDataModule):
         )
         return sig_arr, fs_eff, 1
 
-    # 2. compute global mean/std ----------------------------------------------------------
-    def _compute_global_norm(self, global_pool: List[np.ndarray]):
-        """
-        Robust global z-score:  μ = mean,  σ̂ = 1.4826 * MAD
-        """
+    def _compute_global_norm(self, global_pool: List[np.ndarray]) -> None:
+        """Plain dataset-wide z-score (mu = mean, sigma = std)."""
         concat = np.concatenate(global_pool, dtype=np.float64)
-
-        mu = float(concat.mean())
-        mad = float(np.median(np.abs(concat - mu)))
-        sigma_robust = ROBUST_C * mad                       # ≈ σ for Gaussian data
-
-        # 99.8‑th percentile clip (winsorisation)
-        clip_val = float(np.percentile(np.abs(concat), 99.8))
-
-        self.global_mean = mu
-        self.global_std  = sigma_robust
-        self.clip_val    = clip_val
-
-        logger.info(
-            f"[GlobalNorm] μ={mu:.5f}  σ̂(MAD)={sigma_robust:.5f}  "
-            f"clip ±{clip_val:.2f}"
-        )
+        self.global_mean = float(concat.mean())
+        self.global_std = float(concat.std(ddof=0)) + 1e-12
+        logger.info(f"[GlobalNorm] mu={self.global_mean:.5f}  sigma={self.global_std:.5f}")
 
     # 3. build train/val/test datasets ----------------------------------------------------
     def _build_split_sets(self, meta, bucket_cnt):
@@ -273,9 +254,11 @@ class BearingDataModule(L.LightningDataModule):
         for m in meta:
             sig_arr = m["signal"]
             if self.norm == "global":
-                sig_arr = (sig_arr - self.global_mean) / (self.global_std + 1e-8)
-                sig_arr = np.clip(sig_arr, -self.clip_val,  self.clip_val, sig_arr)
-
+                sig_arr = ((sig_arr - self.global_mean) / (self.global_std + 1e-8)).astype(np.float32)
+                if self.target_rms is not None:
+                    # After z-score: std≈1 and (with mean≈0) RMS≈1 → just scale.
+                    sig_arr *= float(self.target_rms)
+                    
             ds_full = WindowBearingDataset(
                 sig_arr,
                 label=m["label"],
